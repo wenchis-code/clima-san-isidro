@@ -2,21 +2,22 @@ name: Monitor Clima San Isidro
 
 on:
   schedule:
-    # Corre cada 3 horas (00:00, 03:00, 06:00, etc. en hora UTC)
-    # Como Argentina es UTC-3, esto capturará datos a las 21hs, 00hs, 03hs... 
-    # y la ejecución de las 02:45 UTC será la de las 23:45 Arg (que activa los gráficos)
     - cron: '45 */3 * * *'
-  workflow_dispatch: # Esto nos permite probarlo manualmente ahora mismo
+  workflow_dispatch:
+
+# Esto le da permiso al robot para escribir archivos en tu repositorio
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout del codigo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configurar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
