@@ -4,44 +4,51 @@ from datetime import datetime
 import os
 import re
 
-def capturar_todo():
+def capturar():
     url = "https://hipodromosanisidro.com/clima/mb3uv.htm"
     archivo = "registro_clima_san_isidro.csv"
     
     try:
+        # 1. Traer la página
         res = requests.get(url, timeout=30)
         res.encoding = 'latin-1'
-        t = res.text
+        html = res.text
 
-        # Busqueda ultra-simple por palabras clave
-        def f(label):
-            try:
-                # Busca el numero mas cercano despues de la palabra clave
-                return re.search(label + r".*?(\d+[\.,]?\d*)", t, re.S).group(1).replace(',', '.')
-            except:
-                return "0"
+        # 2. Función "limpiadora" de números
+        def extraer(patron):
+            match = re.search(patron, html, re.DOTALL | re.IGNORECASE)
+            if match:
+                # Limpia el número de comas y símbolos
+                num = match.group(1).replace(',', '.')
+                return re.sub(r'[^0-9.]', '', num)
+            return "0"
 
-        nuevo_dato = {
+        # 3. Mapeo por unidades (esto no falla aunque cambien la tabla)
+        datos = {
             "Fecha_Hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Temperatura_C": f("Actual"),
-            "Humedad_pct": f("HUMEDAD"),
-            "Punto_Rocio_C": f("PUNTO DE ROCIO"),
-            "Presion_hPa": f("BAROMETRICA"),
-            "Radiacion_Solar_Wm2": f("RADIACION SOLAR"),
-            "Indice_UV": f("RADIACION UV"),
-            "Viento_Velocidad_kmh": f("Velocidad"),
-            "Viento_Direccion": "S" if "Sector" not in t else re.search(r"Sector\s+([A-Z]+)", t).group(1),
-            "Lluvia_Dia_mm": f("LLUVIA"),
-            "ET_Dia_mm": f("EVAPOTRANSPIRACION")
+            "Temperatura_C": extraer(r"TEMPERATURA.*?Actual.*?(\d+[\.,]?\d*)\s*°C"),
+            "Humedad_pct": extraer(r"HUMEDAD.*?Actual.*?(\d+)\s*%"),
+            "Punto_Rocio_C": extraer(r"PUNTO DE ROCIO.*?Actual.*?(\d+[\.,]?\d*)\s*°C"),
+            "Presion_hPa": extraer(r"PRESION BAROMETRICA.*?Actual.*?(\d+[\.,]?\d*)\s*hPa"),
+            "Radiacion_Solar_Wm2": extraer(r"RADIACION SOLAR.*?Actual.*?(\d+)\s*W/m²"),
+            "Indice_UV": extraer(r"RADIACION UV.*?Actual.*?(\d+[\.,]?\d*)\s*índice"),
+            "Viento_Velocidad_kmh": extraer(r"VIENTO.*?Velocidad.*?(\d+[\.,]?\d*)\s*km/h"),
+            "Viento_Direccion": "S" if "Sector" not in html else re.search(r"Sector\s+([A-Z]+)", html).group(1),
+            "Lluvia_Dia_mm": extraer(r"LLUVIA.*?Diaria.*?(\d+[\.,]?\d*)\s*mm"),
+            "ET_Dia_mm": extraer(r"EVAPOTRANSPIRACION.*?Diaria.*?(\d+[\.,]?\d*)\s*mm")
         }
 
-        df = pd.DataFrame([nuevo_dato])
-        # Escribe al final del archivo (append)
-        df.to_csv(archivo, mode='a', header=not os.path.exists(archivo), index=False, encoding='utf-8-sig')
-        print("Datos guardados en el archivo local del robot.")
+        # 4. Forzar la escritura
+        df = pd.DataFrame([datos])
+        if not os.path.exists(archivo):
+            df.to_csv(archivo, index=False, encoding='utf-8-sig')
+        else:
+            df.to_csv(archivo, mode='a', header=False, index=False, encoding='utf-8-sig')
+        
+        print(f"Éxito: Se capturó Temp {datos['Temperatura_C']}°C")
 
     except Exception as e:
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    capturar_todo()
+    capturar()
