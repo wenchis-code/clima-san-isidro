@@ -5,61 +5,56 @@ import os
 import re
 
 URL_CLIMA = "https://hipodromosanisidro.com/clima/mb3uv.htm"
-BASE_URL_IMG = "https://hipodromosanisidro.com/clima/"
 ARCHIVO_CSV = "registro_clima_san_isidro.csv"
-CARPETA_GRAFICOS = "graficos"
+
+def extraer(patron, texto):
+    # Busca un número antes o después de una palabra clave
+    regex = re.compile(patron, re.IGNORECASE | re.DOTALL)
+    match = regex.search(texto)
+    if match:
+        valor = match.group(1).replace(',', '.')
+        return re.sub(r'[^0-9.]', '', valor)
+    return "0"
 
 def capturar_todo():
     ahora = datetime.now()
+    fecha_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
+    
     try:
         res = requests.get(URL_CLIMA, timeout=20)
         res.encoding = 'latin-1'
-        texto = res.text
+        t = res.text
 
-        # Función de búsqueda por patrón: Busca el número que está antes de una unidad específica
-        def extraer(patron_unidad, texto_completo):
-            # Busca un número (decimal o entero) que esté cerca de la unidad
-            # Ejemplo: "11.1 °C" -> atrapa 11.1
-            regex = re.compile(r"(\d+[\.,]?\d*)\s*" + patron_unidad, re.IGNORECASE)
-            match = regex.search(texto_completo)
-            return match.group(1).replace(',', '.') if match else "0"
-
-        # Extraer dirección del viento (ej: ONO)
-        sector = re.search(r"Sector\s+([A-Z]+)", texto)
-        viento_dir = sector.group(1) if sector else ""
-
+        # Diccionario con los datos limpios
         registro = {
-            "Fecha_Hora": ahora.strftime("%Y-%m-%d %H:%M:%S"),
-            "Temperatura_C": extraer("°C", texto),
-            "Humedad_pct": extraer("%", texto),
-            "Punto_Rocio_C": extraer("°C", texto.split("PUNTO DE ROCIO")[1]) if "PUNTO DE ROCIO" in texto else "0",
-            "Presion_hPa": extraer("hPa", texto),
-            "Radiacion_Solar_Wm2": extraer("W/m²", texto),
-            "Indice_UV": extraer("índice", texto),
-            "Viento_Velocidad_kmh": extraer("km/h", texto),
-            "Viento_Direccion": viento_dir,
-            "Lluvia_Dia_mm": extraer("mm", texto.split("LLUVIA")[1]) if "LLUVIA" in texto else "0",
-            "ET_Dia_mm": extraer("mm", texto.split("EVAPOTRANSPIRACION")[1]) if "EVAPOTRANSPIRACION" in texto else "0"
+            "Fecha_Hora": fecha_str,
+            "Temperatura_C": extraer(r"Actual.*?(\d+[\.,]?\d*)\s*°C", t),
+            "Humedad_pct": extraer(r"HUMEDAD.*?Actual.*?(\d+)\s*%", t),
+            "Punto_Rocio_C": extraer(r"PUNTO DE ROCIO.*?Actual.*?(\d+[\.,]?\d*)\s*°C", t),
+            "Presion_hPa": extraer(r"BAROMETRICA.*?Actual.*?(\d+[\.,]?\d*)\s*hPa", t),
+            "Radiacion_Solar_Wm2": extraer(r"SOLAR.*?Actual.*?(\d+)\s*W/m²", t),
+            "Indice_UV": extraer(r"UV.*?Actual.*?(\d+[\.,]?\d*)\s*índice", t),
+            "Viento_Velocidad_kmh": extraer(r"Velocidad.*?(\d+[\.,]?\d*)\s*km/h", t),
+            "Viento_Direccion": "S" if "Sector" not in t else re.search(r"Sector\s+([A-Z]+)", t).group(1),
+            "Lluvia_Dia_mm": extraer(r"LLUVIA.*?Diaria.*?(\d+[\.,]?\d*)\s*mm", t),
+            "ET_Dia_mm": extraer(r"EVAPOTRANSPIRACION.*?Diaria.*?(\d+[\.,]?\d*)\s*mm", t)
         }
 
-        # Guardar en CSV
-        df = pd.DataFrame([registro])
-        df.to_csv(ARCHIVO_CSV, mode='a', index=False, header=not os.path.exists(ARCHIVO_CSV), encoding='utf-8-sig')
-        print(f"Captura exitosa: {registro}")
-
-        # Gráficos (Solo a las 23hs)
-        if ahora.hour == 23:
-            if not os.path.exists(CARPETA_GRAFICOS): os.makedirs(CARPETA_GRAFICOS)
-            imgs = ["OutsideTempHistory.gif", "OutsideHumidityHistory.gif", "BarometerHistory.gif", "WindSpeedHistory.gif", "RainHistory.gif", "SolarRadHistory.gif", "UVHistory.gif"]
-            for g in imgs:
-                try:
-                    r_img = requests.get(BASE_URL_IMG + g, timeout=10)
-                    with open(f"{CARPETA_GRAFICOS}/{ahora.strftime('%Y%m%d')}_{g}", 'wb') as f:
-                        f.write(r_img.content)
-                except: continue
+        # FORZAR ESCRITURA: Creamos el DataFrame y lo guardamos
+        df_nuevo = pd.DataFrame([registro])
+        
+        if not os.path.exists(ARCHIVO_CSV):
+            df_nuevo.to_csv(ARCHIVO_CSV, index=False, encoding='utf-8-sig')
+        else:
+            # Leemos el existente, pegamos el nuevo y guardamos todo de nuevo
+            df_existente = pd.read_csv(ARCHIVO_CSV)
+            df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
+            df_final.to_csv(ARCHIVO_CSV, index=False, encoding='utf-8-sig')
+            
+        print(f"Fila grabada exitosamente para {fecha_str}")
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error al grabar: {e}")
 
 if __name__ == "__main__":
     capturar_todo()
