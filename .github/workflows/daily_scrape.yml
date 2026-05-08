@@ -2,10 +2,10 @@ name: Monitor Clima San Isidro
 
 on:
   schedule:
+    # Corre cada 3 horas (00:45, 03:45, 06:45, etc. en hora UTC)
     - cron: '45 */3 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Permite ejecución manual desde la pestaña Actions
 
-# Esto le da permiso al robot para escribir archivos en tu repositorio
 permissions:
   contents: write
 
@@ -27,10 +27,10 @@ jobs:
       - name: Ejecutar script de captura
         run: python captura_clima.py
 
-      - name: Guardar cambios
+      - name: Guardar y subir cambios al repositorio
         run: |
           git config --global user.name "ClimaBot"
           git config --global user.email "bot@github.com"
-          git add .
-          git commit -m "Captura automatica: $(date)" || exit 0
+          git add registro_clima_san_isidro.csv graficos/*
+          git commit -m "Captura automatica de datos" || exit 0
           git push
