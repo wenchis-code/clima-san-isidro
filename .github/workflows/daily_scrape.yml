@@ -12,24 +12,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout del codigo
         uses: actions/checkout@v4
+        with:
+          ref: main # Forzamos que trabaje sobre la rama principal
 
-      - name: Setup Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Install Dependencies
+      - name: Instalar librerias
         run: pip install pandas requests beautifulsoup4
 
-      - name: Run Script
+      - name: Ejecutar script de captura
         run: python captura_clima.py
 
-      - name: Commit and Push
+      - name: Guardar y subir cambios
         run: |
           git config --global user.name "ClimaBot"
           git config --global user.email "bot@github.com"
           git add registro_clima_san_isidro.csv
-          git commit -m "Captura automatica" || exit 0
-          git push origin main
+          git commit -m "Captura automatica $(date)" || echo "Sin cambios para commitear"
+          git push origin main # Forzamos el envio a la rama main
