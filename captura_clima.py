@@ -1,99 +1,88 @@
 import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
 import os
+import re
 import urllib3
 
+# Evita las alertas de conexión
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def capturar():
     url = "https://hipodromosanisidro.com/clima/mb3uv.htm"
-    base_img_url = "https://hipodromosanisidro.com/clima/"
-    archivo_csv = "registro_clima_san_isidro.csv"
+    archivo = "registro_clima_san_isidro.csv"
     carpeta_graficos = "graficos"
     ahora = datetime.now()
 
+    # El disfraz para que el servidor nos deje entrar
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
     try:
-        # 1. Traer la página
+        # 1. Obtener los datos
         res = requests.get(url, headers=headers, timeout=30, verify=False)
         res.encoding = 'windows-1252'
-        
-        # USAMOS BEAUTIFULSOUP: El lector de planos
-        soup = BeautifulSoup(res.text, 'html.parser')
+        html_limpio = re.sub(r'<[^>]*>', ' ', res.text).replace('&nbsp;', ' ')
 
-        # Función inteligente para buscar un valor en una tabla
-        def buscar_valor(etiqueta_titulo):
-            # Busca la celda que contiene el título exacto (ej. "TEMPERATURA")
-            celda_titulo = soup.find(string=lambda text: text and etiqueta_titulo in text)
-            if celda_titulo:
-                # Sube a la tabla principal de esa sección y extrae todo su texto
-                tabla = celda_titulo.find_parent('table')
-                if tabla:
-                    texto_tabla = tabla.get_text(separator=" ", strip=True)
-                    return texto_tabla
-            return ""
+        # 2. Función extractora
+        def ext(patron):
+            m = re.search(patron, html_limpio, re.IGNORECASE | re.S)
+            if m:
+                return re.sub(r'[^0-9.]', '', m.group(1).replace(',', '.'))
+            return "0"
 
-        # Obtenemos los textos limpios por bloques (ignorando el desorden del HTML)
-        bloque_temp = buscar_valor("TEMPERATURA")
-        bloque_hum = buscar_valor("HUMEDAD")
-        bloque_pres = buscar_valor("PRESION BAROMETRICA")
-        bloque_viento = buscar_valor("VIENTO")
-        bloque_lluvia = buscar_valor("LLUVIA")
-
-        # Función auxiliar para limpiar números
-        def extraer_numero(texto, separador_previo, unidad):
-            try:
-                parte = texto.split(separador_previo)[1]
-                num = parte.split(unidad)[0].strip().replace(',', '.')
-                return ''.join(c for c in num if c.isdigit() or c == '.')
-            except:
-                return "0"
-
-        # Extraemos con precisión milimétrica de cada bloque aislado
+        # 3. Capturar cada uno de los 11 datos
         datos = {
             "Fecha_Hora": ahora.strftime("%Y-%m-%d %H:%M:%S"),
-            "Temperatura_C": extraer_numero(bloque_temp, "Actual", "°C"),
-            "Humedad_pct": extraer_numero(bloque_hum, "Actual", "%"),
-            "Presion_hPa": extraer_numero(bloque_pres, "Actual", "hPa"),
-            "Viento_Velocidad_kmh": extraer_numero(bloque_viento, "elocidad", "km/h"),
-            "Lluvia_Dia_mm": extraer_numero(bloque_lluvia, "Diaria", "mm")
+            "Temperatura_C": ext(r"TEMPERATURA.*?Actual\s*([\d\.,]+)\s*°C"),
+            "Humedad_pct": ext(r"HUMEDAD.*?Actual\s*([\d\.,]+)\s*%"),
+            "Punto_Rocio_C": ext(r"PUNTO\s+DE\s+ROCIO.*?Actual\s*([\d\.,]+)\s*°C"),
+            "Presion_hPa": ext(r"PRESION\s+BAROMETRICA.*?Actual\s*([\d\.,]+)\s*hPa"),
+            "Radiacion_Solar_Wm2": ext(r"RADIACION\s+SOLAR.*?Actual\s*([\d\.,]+)\s*W/m"),
+            "Indice_UV": ext(r"RADIACION\s+UV.*?Actual\s*([\d\.,]+)\s*índice"),
+            "Viento_Velocidad_kmh": ext(r"VIENTO.*?elocidad\s*([\d\.,]+)\s*km/h"),
+            "Viento_Direccion": "S", # Por defecto
+            "Lluvia_Dia_mm": ext(r"LLUVIA.*?Diaria\s*([\d\.,]+)\s*mm"),
+            "ET_Dia_mm": ext(r"EVAPOTRANSPIRACION.*?Diaria\s*([\d\.,]+)\s*mm")
         }
 
-        # 2. GUARDAR DATOS EN CSV
-        df = pd.DataFrame([datos])
-        if not os.path.exists(archivo_csv):
-            df.to_csv(archivo_csv, index=False, encoding='utf-8-sig')
-        else:
-            df.to_csv(archivo_csv, mode='a', header=False, index=False, encoding='utf-8-sig')
-            
-        print(f"Datos grabados: {datos}")
+        m_dir = re.search(r"Sector\s*([A-Z]+)", html_limpio)
+        if m_dir:
+            datos["Viento_Direccion"] = m_dir.group(1)
 
-        # 3. DESCARGAR GRÁFICOS (Solo una vez al día a las 23hs para tener el resumen del día, o podés sacarle el 'if' para que baje siempre)
+        # 4. GRABADO A PRUEBA DE BALAS CON PANDAS
+        df_nuevo = pd.DataFrame([datos])
+        
+        if os.path.exists(archivo) and os.path.getsize(archivo) > 0:
+            try:
+                # Lee el archivo viejo, le pega la nueva fila abajo y guarda todo formateado
+                df_existente = pd.read_csv(archivo)
+                df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
+                df_final.to_csv(archivo, index=False, encoding='utf-8-sig')
+            except:
+                # Si la tabla vieja estaba rota, la ignora y guarda la nueva bien hecha
+                df_nuevo.to_csv(archivo, index=False, encoding='utf-8-sig')
+        else:
+            df_nuevo.to_csv(archivo, index=False, encoding='utf-8-sig')
+                
+        print(f"DATOS GRABADOS CORRECTAMENTE: {datos}")
+
+        # 5. Capturar los Gráficos
         if not os.path.exists(carpeta_graficos):
             os.makedirs(carpeta_graficos)
             
-        graficos = [
-            "OutsideTempHistory.gif", 
-            "OutsideHumidityHistory.gif", 
-            "BarometerHistory.gif", 
-            "WindSpeedHistory.gif", 
-            "RainHistory.gif"
-        ]
+        graficos = ["OutsideTempHistory.gif", "OutsideHumidityHistory.gif", "BarometerHistory.gif", "WindSpeedHistory.gif", "RainHistory.gif"]
+        base_img_url = "https://hipodromosanisidro.com/clima/"
         
-        for grafico in graficos:
+        for g in graficos:
             try:
-                img_data = requests.get(base_img_url + grafico, headers=headers, verify=False, timeout=10).content
-                # Guarda la imagen con la fecha de hoy
-                ruta_img = f"{carpeta_graficos}/{ahora.strftime('%Y%m%d')}_{grafico}"
+                img_data = requests.get(base_img_url + g, headers=headers, verify=False, timeout=10).content
+                ruta_img = f"{carpeta_graficos}/{ahora.strftime('%Y%m%d')}_{g}"
                 with open(ruta_img, 'wb') as f:
                     f.write(img_data)
-            except Exception as e:
-                print(f"No se pudo descargar {grafico}: {e}")
+            except:
+                pass
 
     except Exception as e:
         print(f"Error general: {e}")
