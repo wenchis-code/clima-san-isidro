@@ -2,40 +2,34 @@ name: Monitor Clima San Isidro
 
 on:
   schedule:
-    # Cada 3 horas, a los :45 (evita el tráfico de la hora exacta)
     - cron: '45 */3 * * *'
-  # Permite lanzar manualmente desde la pestaña Actions
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  capturar:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout del repositorio
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: main
 
-      - name: Configurar Python 3.11
+      - name: Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.9'
 
-      - name: Instalar dependencias
-        run: pip install pandas requests beautifulsoup4 lxml
+      - name: Librerias
+        run: pip install pandas requests
 
-      - name: Ejecutar captura
+      - name: Ejecutar Script
         run: python captura_clima.py
 
-      - name: Commit y push de cambios
+      - name: Subir Archivo
         run: |
-          git config --global user.name  "ClimaBot"
+          git config --global user.name "ClimaBot"
           git config --global user.email "bot@github.com"
-          git add registro_clima_san_isidro.csv graficos/
-          git commit -m "Captura automática $(date -u '+%Y-%m-%d %H:%M UTC')" \
-            || echo "Sin cambios para commitear"
+          git add registro_clima_san_isidro.csv
+          git commit -m "Captura exitosa $(date)" || exit 0
           git push origin main
