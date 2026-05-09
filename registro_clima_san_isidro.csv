@@ -1,3 +1,4 @@
 ﻿Captura_Sistema,Web_Fecha_Origen,Web_Hora_Origen,Temp_Actual_C,Temp_Min_Diaria_C,Temp_Max_Diaria_C,Temp_Hora_Min,Temp_Hora_Max,Temp_Min_Mensual_C,Temp_Max_Mensual_C,Hum_Actual_pct,Hum_Min_Diaria_pct,Hum_Max_Diaria_pct,Hum_Hora_Min,Hum_Hora_Max,Punto_Rocio_C,Presion_hPa,Viento_Vel_kmh,Viento_Dir,Viento_Max_kmh,Viento_Hora_Max,Lluvia_Dia_mm,Lluvia_Mes_mm,ET_Dia_mm,Rad_Solar_Wm2,UV_Indice,UV_Max_Diaria,UV_Hora_Max
 2026-05-09 15:31:16,09/05/26,12:25p,10.1,5.8,10.1,4:48a,12:25p,2.3,26.1,86,50,94,12:02a,6:32a,7.9,1016.3,0,SO,0,,2.0,43.2,0.51,322,1.8,2.3,12:22p
 2026-05-09 15:57:35,0,0,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,S,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR
+2026-05-09 16:04:35,0,0,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,S,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR,ERROR
