@@ -20,16 +20,17 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Librerias
-        run: pip install pandas requests
+      - name: Instalar Herramientas
+        run: pip install pandas requests beautifulsoup4
 
-      - name: Ejecutar Script
+      - name: Ejecutar Extraccion
         run: python captura_clima.py
 
-      - name: Subir Archivo
+      - name: Subir Datos y Graficos
         run: |
           git config --global user.name "ClimaBot"
           git config --global user.email "bot@github.com"
           git add registro_clima_san_isidro.csv
+          git add graficos/* || echo "No hay graficos nuevos"
           git commit -m "Captura exitosa $(date)" || exit 0
           git push origin main
