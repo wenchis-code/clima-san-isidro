@@ -4,23 +4,29 @@ from datetime import datetime
 import os
 import re
 import urllib3
+import time
 
 # Evita las alertas de conexión
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def capturar():
-    url = "https://hipodromosanisidro.com/clima/mb3uv.htm"
+    # EL TRUCO ROMPE-CACHÉ: Agregamos la hora exacta a la URL para forzar datos frescos
+    timestamp = int(time.time())
+    url = f"https://hipodromosanisidro.com/clima/mb3uv.htm?nocache={timestamp}"
     archivo = "registro_clima_san_isidro.csv"
     carpeta_graficos = "graficos"
     ahora = datetime.now()
 
-    # El disfraz para que el servidor nos deje entrar
+    # Disfraz con órdenes estrictas de NO usar memoria caché
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
     }
     
     try:
-        # 1. Obtener los datos
+        # 1. Obtener los datos frescos
         res = requests.get(url, headers=headers, timeout=30, verify=False)
         res.encoding = 'windows-1252'
         html_limpio = re.sub(r'<[^>]*>', ' ', res.text).replace('&nbsp;', ' ')
@@ -42,7 +48,7 @@ def capturar():
             "Radiacion_Solar_Wm2": ext(r"RADIACION\s+SOLAR.*?Actual\s*([\d\.,]+)\s*W/m"),
             "Indice_UV": ext(r"RADIACION\s+UV.*?Actual\s*([\d\.,]+)\s*índice"),
             "Viento_Velocidad_kmh": ext(r"VIENTO.*?elocidad\s*([\d\.,]+)\s*km/h"),
-            "Viento_Direccion": "S", # Por defecto
+            "Viento_Direccion": "S", 
             "Lluvia_Dia_mm": ext(r"LLUVIA.*?Diaria\s*([\d\.,]+)\s*mm"),
             "ET_Dia_mm": ext(r"EVAPOTRANSPIRACION.*?Diaria\s*([\d\.,]+)\s*mm")
         }
@@ -56,17 +62,15 @@ def capturar():
         
         if os.path.exists(archivo) and os.path.getsize(archivo) > 0:
             try:
-                # Lee el archivo viejo, le pega la nueva fila abajo y guarda todo formateado
                 df_existente = pd.read_csv(archivo)
                 df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
                 df_final.to_csv(archivo, index=False, encoding='utf-8-sig')
             except:
-                # Si la tabla vieja estaba rota, la ignora y guarda la nueva bien hecha
                 df_nuevo.to_csv(archivo, index=False, encoding='utf-8-sig')
         else:
             df_nuevo.to_csv(archivo, index=False, encoding='utf-8-sig')
                 
-        print(f"DATOS GRABADOS CORRECTAMENTE: {datos}")
+        print(f"DATOS FRESCOS GRABADOS: {datos}")
 
         # 5. Capturar los Gráficos
         if not os.path.exists(carpeta_graficos):
@@ -77,7 +81,7 @@ def capturar():
         
         for g in graficos:
             try:
-                img_data = requests.get(base_img_url + g, headers=headers, verify=False, timeout=10).content
+                img_data = requests.get(base_img_url + g + f"?nocache={timestamp}", headers=headers, verify=False, timeout=10).content
                 ruta_img = f"{carpeta_graficos}/{ahora.strftime('%Y%m%d')}_{g}"
                 with open(ruta_img, 'wb') as f:
                     f.write(img_data)
